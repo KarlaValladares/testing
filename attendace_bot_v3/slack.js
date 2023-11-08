@@ -1,5 +1,5 @@
 import { createRequire } from "module";
-import { writeTextToFile } from "./index.js";
+import { updateTsValue } from "./index.js";
 const require = createRequire(import.meta.url);
 const { App, LogLevel } = require("@slack/bolt");
 require('dotenv').config();
@@ -73,8 +73,11 @@ async function replyMessage(id, ts, text) {
   }
 }
 
-async function replyMessagewithrecord(id, ts, text, title) {
+async function replyMessagewithrecord(id, ts, text, keyValue,title) {
   let nameRecord = title;
+  let keyTsToUpdate = keyValue;
+
+  console.log("reply to trhead: ", nameRecord, keyTsToUpdate)
   try {
     // Call the chat.postMessage method using the built-in WebClient
     const result = await app.client.chat.postMessage({
@@ -84,8 +87,9 @@ async function replyMessagewithrecord(id, ts, text, title) {
       text,
     });
 
-    let content = result.ts
-    writeTextToFile(nameRecord, content)
+    let content = result.ts;
+    
+    await updateTsValue(nameRecord, keyTsToUpdate, content);
 
     return content
   }

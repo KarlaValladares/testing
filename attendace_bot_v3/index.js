@@ -113,7 +113,7 @@ const gmail = google.gmail({ version: 'v1', auth })
 
 // People Database Constants
 
-const spreadsheetId = "Google Sheet with peopledatabase";
+const spreadsheetId = "18tn8iR1wlBBI8aB1S_5KVRsnCz763JgXWxD9UvBKvME";
 
 const ALLTABNAME = "All";
 
@@ -141,6 +141,8 @@ const STUDENTTIME = 10 * 60 * 1000; //10 minutes
 
 const TUTORTIME = 5 * 60 * 1000; //5 minutes
 
+const BOTTIME = -1 * 60 * 1000; // 1 min before the start time
+
 //FOR TESTING:
 
 // const STUDENTTIME = 0 * 60 * 1000; 
@@ -149,7 +151,11 @@ const TUTORTIME = 5 * 60 * 1000; //5 minutes
 
 
 
-const MONITORING_EMAIL = "karla.valladares@modernsmart.com"; // this should be the operational account
+const MONITORING_EMAIL = "c_0cfc6e73a322d321cc674c06ba78cb7e316d53831db5cab95922f3cc7f7cdfc6@group.calendar.google.com";
+
+//const MONITORING_EMAIL = "karla.valladares@modernsmart.com"; // this should be the operation account
+
+const firefliesAccount = "ModernSmart Inc."; // this is for the firefly
 
 const DATE_REGEX = /(\d?\d:\d\d):\d\d\s(\w\w)/;
 
@@ -171,7 +177,8 @@ const PRESENT = 1;
 
 //const UAT_CHANNEL_ID = "C05QLMNNS1W";
 
-const prod_channel_ID = "C05MZ2XBYAJ"; // will need to be change to UAT
+// const prod_channel_ID = "C05QLMNNS1W";
+const prod_channel_ID = "C05MZ2XBYAJ";
 
 
 
@@ -535,15 +542,21 @@ class AttendanceBot {
 
      */
 
-    async takeAttendance(thread, interval, guestList, startTime, lateGuests, attendacetitle, absenceTitle) {
+    async takeAttendance(thread, interval, guestList, startTime, lateGuests, fileName) {
 
         const page = this.page;
 
         let log = "";
 
-        let attendacetitleinfo = attendacetitle;
+        let JSONwithTS = fileName
 
-        let absenceTitleinfo = absenceTitle
+        let attendaceKeyinfo = "absenceTs";
+
+        let absenceKeyTutor = "attendaceTuTorTs";
+
+        let absenceKeyStudent = "attendaceStudentTs";
+
+        let absenceKeyNot = "absenceKeyTutor";
 
         // Scrape display names
 
@@ -583,13 +596,15 @@ class AttendanceBot {
 
         log += await createLog(PresetUser, absentees);
 
-        let replyID = await readTextFile(attendacetitleinfo)
+        console.log("value to read JSON: ", JSONwithTS, attendaceKeyinfo)
+
+        let replyID = await readJSONValue(JSONwithTS, attendaceKeyinfo)
 
         //console.log(replyID)
 
         let currentMEssage;
 
-        if (replyID != "") {
+        if (replyID != "0") {
 
             currentMEssage = await getMessageByTsAndChannel(prod_channel_ID, replyID);
         } else {
@@ -608,7 +623,7 @@ class AttendanceBot {
 
         if (textRecord1 !== textRecord2) {
 
-            sendMessagewithrecord(thread, log, attendacetitleinfo);
+            sendMessagewithrecord(thread, log, attendaceKeyinfo, JSONwithTS);
         } else {
             // The string representations are the same, so no need to send a message.
             console.log("There is no change in the attendace.");
@@ -620,7 +635,7 @@ class AttendanceBot {
 
             if (!lateGuests.includes(absentee.email)) { // If guests have already been marked late, do not notify them again
 
-                lateGuests = lateGuests.concat(await notifyAbsence(absentee, startTime, thread, absenceTitleinfo));
+                lateGuests = lateGuests.concat(await notifyAbsence(absentee, startTime, thread, JSONwithTS, absenceKeyTutor, absenceKeyStudent, absenceKeyNot));
 
             }
 
@@ -697,11 +712,16 @@ async function monitorMeet(browser, event) {
 
     let eventID = event.id;
     let attendanceLog = "";
-    let absenceTxt = `AbsenceRecord_${eventID}`;
-    let attendaceTxt = `Attendance_${eventID}`;
+    let fileName = `Record_${eventID}`
+    // let absenceTxt = `AbsenceRecord_${eventID}`;
+    // let attendaceTuTorTxt = `AttendanceTutor_${eventID}`;
+    // let attendaceStudentTxt = `AttendanceStudent_${eventID}`;
+    // let attendaceBotTxt = `AttendanceBot_${eventID}`;
 
-    createEmptyTextFile(absenceTxt)
-    createEmptyTextFile(attendaceTxt)
+    // createEmptyTextFile(absenceTxt)
+    // createEmptyTextFile(attendaceTxt)
+
+    await writeJSONFile(fileName)
 
 
     const startTime = event.startTime.getTime();
@@ -764,15 +784,24 @@ async function monitorMeet(browser, event) {
 
                     if (await bot.isInMeet() === true) {
 
+                        let guestListForAttandace = event.guests.slice();
+                        guestListForAttandace.push({
+                            email: 'No email address',
+                            displayName: 'ModernSmart Inc.',
+                            responseStatus: 'needsAction'
+                        });
+
+                        console.log(guestListForAttandace)
+
                         lateGuests = lateGuests.concat(
                             await bot.takeAttendance(
                                 thread,
                                 1 * 60 * 1000,
-                                event.guests,
+                                guestListForAttandace,
                                 event.startTime,
                                 lateGuests,
-                                attendaceTxt,
-                                absenceTxt)); // CHANGE WHEN TESTING
+                                fileName
+                            )); // CHANGE WHEN TESTING
 
                     } else {
 
@@ -806,8 +835,9 @@ async function monitorMeet(browser, event) {
 
         console.log(`closing context...${event.meetLink} `);
 
-        deleteFile(absenceTxt)
-        deleteFile(attendaceTxt)
+        // deleteFile(absenceTxt)
+        // deleteFile(attendaceTxt)
+        deleteJSONFile(fileName)
 
         await bot.context.close();
 
@@ -1138,7 +1168,7 @@ function presetGuestcreate(guestDisplayList, guestList) {
     for (let guest of guestList) {
         //Skip checking monitoring email for the moment is my account
         // we will need to replace it by 'ModernSmart Team'
-        if (guest.email == MONITORING_EMAIL || guest.invitedNickName == 'Karla Valladares') { continue; }
+        //if (guest.email == MONITORING_EMAIL || guest.invitedNickName == 'Karla Valladares') { continue; }
 
         let personData = getPersonFromData(PEOPLEDATABASE, guest.email, EMAIL_COLUMN);
 
@@ -1219,10 +1249,10 @@ async function createLog(guests, absentees) {
 }
 
 
-async function notifyAbsence(absentee, meetingTime, thread, absenceTitle) {
+async function notifyAbsence(absentee, meetingTime, thread, JSONwithTS, keyTutor, keyStudent, keyBot) {
 
 
-    let titleAbsenceRecord = absenceTitle
+    let titleAbsenceRecord = JSONwithTS;
 
     const curTime = new Date();
 
@@ -1234,9 +1264,22 @@ async function notifyAbsence(absentee, meetingTime, thread, absenceTitle) {
 
     var lateThreshold;
 
-    if (role == "student") { lateThreshold = STUDENTTIME; }
+    var keyTS;
 
-    else if (role == "tutor") { lateThreshold = TUTORTIME; }
+    if (role == "student") {
+        lateThreshold = STUDENTTIME;
+        keyTS = keyStudent
+    }
+
+    else if (role == "tutor") {
+        lateThreshold = TUTORTIME;
+        keyTS = keyTutor
+    }
+
+    else if (name == firefliesAccount) {
+        lateThreshold = BOTTIME;
+        keyTS = keyBot
+    }
 
     else { return []; }
 
@@ -1260,13 +1303,13 @@ async function notifyAbsence(absentee, meetingTime, thread, absenceTitle) {
 
         let contentAbsent = await `${curTime.toLocaleTimeString('en-US')} ${name} is absent. \n<@U05M0P95AGZ>`;
 
-        let replyAbsentID = await readTextFile(titleAbsenceRecord)
+        let replyAbsentID = await readJSONValue(titleAbsenceRecord, keyTS)
 
         console.log(replyAbsentID)
 
         let currentabsentMessage;
 
-        if (replyAbsentID != "") {
+        if (replyAbsentID != "0") {
 
             currentabsentMessage = await getMessageByTsAndChannel(prod_channel_ID, replyAbsentID);
 
@@ -1275,20 +1318,20 @@ async function notifyAbsence(absentee, meetingTime, thread, absenceTitle) {
             currentabsentMessage = 'PM'
         }
 
-        console.log("contentAbsent: ", contentAbsent, "currentabsentMessage: ", currentabsentMessage)
+        //console.log("contentAbsent: ", contentAbsent, "currentabsentMessage: ", currentabsentMessage)
 
 
         let recordAbsent1 = await removeAMorPM(contentAbsent);
 
         let recordAbsent2 = await removeAMorPM(currentabsentMessage);
 
-        console.log("recordAbsent1: ", recordAbsent1, "recordAbsent2: ", recordAbsent1)
-        console.log(recordAbsent1 !== recordAbsent2)
+        //console.log("recordAbsent1: ", recordAbsent1, "recordAbsent2: ", recordAbsent1)
+        //console.log(recordAbsent1 !== recordAbsent2)
 
 
         if (recordAbsent1 !== recordAbsent2) {
 
-            sendMessagewithrecord(thread, contentAbsent, titleAbsenceRecord);
+            sendMessagewithrecord(thread, contentAbsent, keyTS, titleAbsenceRecord);
         } else {
             // The string representations are the same, so no need to send a message.
             console.log("There is no change in the attendace.");
@@ -1539,15 +1582,16 @@ function sendMessage(thread, message) {
 
 }
 
-function sendMessagewithrecord(thread, message, nameRecord) {
+function sendMessagewithrecord(thread, message, keyValue, nameRecord) {
 
     let title = nameRecord;
+    let keyTSValue = keyValue;
 
     mutex.runExclusive(async () => {
 
         try {
 
-            await replyMessagewithrecord(prod_channel_ID, thread.ts, message, title);
+            await replyMessagewithrecord(prod_channel_ID, thread.ts, message, keyTSValue, title);
 
             console.log("message sent!");
 
@@ -1649,61 +1693,136 @@ async function authorize() {
 
 }
 
+// Function to create a JSON file, with the event ID as title
 
-// Function to create a TXT file with the event ID as title 
-async function createEmptyTextFile(fileName) {
+async function writeJSONFile(fileName) {
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+    const jsonFilePath = path.join(__dirname, 'record', `${fileName}.json`);
+    const data = {
+        absenceTs: "0",
+        attendaceTuTorTs: "0",
+        attendaceStudentTs: "0",
+        attendaceBotTs: "0"
+    };
+
+    const jsonData = JSON.stringify(data, null, 2);
+    console.log("File created")
+
     try {
-        const __dirname = path.dirname(fileURLToPath(import.meta.url));
-        // Specify the directory path where the file should be created
-        const directoryPath = path.join(__dirname, 'record');
-        // Specify the file path
-        const filePath = path.join(directoryPath, `${fileName}.txt`);
-
-        // Create the empty file
-        await fs.writeFile(filePath, '', 'utf8');
-    } catch (err) {
-        console.error(`Error creating the file: ${err}`);
+        await fs.writeFile(jsonFilePath, jsonData, 'utf8');
+        console.log('JSON file created');
+    } catch (error) {
+        console.error(error);
     }
 }
 
-
-// Function to write in the TXT file with the even name as title
+// Function to write in the JSON and update the keyvalue we need 
 // It will write the ts of the last post in Slack
-async function writeTextToFile(txtFileName, content) {
+function updateTsValue(fileName, key, newTS) {
     try {
-        await fs.writeFile(`./Record/${txtFileName}.txt`, content, 'utf8');
-    } catch (err) {
-        console.error(`Error writing to the file: ${err}`);
+        const jsonFilePath = `./Record/${fileName}.json`;
+        const jsonData = require(jsonFilePath);
+
+        // Update the specified key with the new value
+        jsonData[key] = newTS;
+
+        // Write the updated JSON back to the file
+        const fs = require('fs');
+        fs.writeFileSync(jsonFilePath, JSON.stringify(jsonData, null, 2), 'utf8');
+        console.log(`Updated "${key}" in "${fileName}.json"`);
+    } catch (error) {
+        console.error('Error updating JSON file:', error);
     }
 }
+
+
+// Function to write in the JSON file with the even name as title
+// It will write the ts of the last post in Slack
+
+async function readJSONValue(fileName, key) {
+    try {
+        const jsonData = require(`./Record/${fileName}.json`);
+        return jsonData[key];
+    } catch (error) {
+        console.error('Error reading JSON file:', error);
+    }
+}
+
+// function to delete the JSON record when the meets end
+
+async function deleteJSONFile(fileName) {
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+    const jsonFilePath = path.join(__dirname, 'record', `${fileName}.json`);
+
+    try {
+        await fs.unlink(jsonFilePath);
+        console.log('JSON file deleted successfully');
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+
+
+// // Function to create a TXT file with the event ID as title 
+// async function createEmptyTextFile(fileName) {
+//     try {
+//         const __dirname = path.dirname(fileURLToPath(import.meta.url));
+//         // Specify the directory path where the file should be created
+//         const directoryPath = path.join(__dirname, 'record');
+//         // Specify the file path
+//         const filePath = path.join(directoryPath, `${fileName}.txt`);
+
+//         // Create the empty file
+//         await fs.writeFile(filePath, '', 'utf8');
+//     } catch (err) {
+//         console.error(`Error creating the file: ${err}`);
+//     }
+// }
+
+
+
+
+
+// // Function to write in the TXT file with the even name as title
+// It will write the ts of the last post in Slack
+// async function writeTextToFile(txtFileName, content) {
+//     try {
+//         await fs.writeFile(`./Record/${txtFileName}.txt`, content, 'utf8');
+//     } catch (err) {
+//         console.error(`Error writing to the file: ${err}`);
+//     }
+// }
 
 
 // function to read the information in the TXT to get the TS in the content
 // it will retun the content so we can use it to read the history of the Slack post
-async function readTextFile(txtFileName) {
-    try {
-        const content = await fs.readFile(`./Record/${txtFileName}.txt`, 'utf8');
-        return content;
-    } catch (err) {
-        console.error(`Error reading the file: ${err}`);
-        return null;
-    }
-}
+// async function readTextFile(txtFileName) {
+//     try {
+//         const content = await fs.readFile(`./Record/${txtFileName}.txt`, 'utf8');
+//         return content;
+//     } catch (err) {
+//         console.error(`Error reading the file: ${err}`);
+//         return null;
+//     }
+// }
 
 // function to delete the TXT record when the meets end
 
-async function deleteFile(txtFileName) {
-    try {
-        // Check if the file exists
-        await fs.access(`./Record/${txtFileName}.txt`);
+// async function deleteFile(txtFileName) {
+//     try {
+//         // Check if the file exists
+//         await fs.access(`./Record/${txtFileName}.txt`);
 
-        // Delete the file
-        await fs.unlink(`./Record/${txtFileName}.txt`);
-        console.log(`File "${txtFileName}" has been deleted.`);
-    } catch (error) {
-        console.error(`Error deleting file "${txtFileName}": ${error.message}`);
-    }
-}
+//         // Delete the file
+//         await fs.unlink(`./Record/${txtFileName}.txt`);
+//         console.log(`File "${txtFileName}" has been deleted.`);
+//     } catch (error) {
+//         console.error(`Error deleting file "${txtFileName}": ${error.message}`);
+//     }
+// }
 
 
 function capitalizeFirstLetter(string) {
@@ -1838,6 +1957,6 @@ export async function main() {
 
 }
 
-export { writeTextToFile }
+export { updateTsValue }
 
 main();
