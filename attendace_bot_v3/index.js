@@ -141,7 +141,7 @@ const STUDENTTIME = 10 * 60 * 1000; //10 minutes
 
 const TUTORTIME = 5 * 60 * 1000; //5 minutes
 
-// const BOTTIME = -1 * 60 * 1000; // 1 min before the start time
+const BOTTIME = -1 * 60 * 1000; // 1 min before the start time
 
 //FOR TESTING:
 
@@ -153,7 +153,9 @@ const TUTORTIME = 5 * 60 * 1000; //5 minutes
 
 
 
-const MONITORING_EMAIL = "operation@modernsmart.com";
+const MONITORING_EMAIL = "monitoring@modernsmart.com";
+
+const OPERATION_EMAIL = "operation@modernsmart.com";
 
 //const firefliesAccount = "ModernSmart Inc."; // this is for the firefly
 
@@ -176,6 +178,8 @@ const PRESENT = 1;
 //const TEST_CHANNEL2_ID = "D05DWRVB000";
 
 const UAT_CHANNEL_ID = "C05QLMNNS1W";
+
+
 
 
 
@@ -393,15 +397,15 @@ class AttendanceBot {
 
         // // continue without microphone and camera
 
-        console.log("dismissing popup");
+        // console.log("dismissing popup");
 
-        await sleep(2000);
+        // await sleep(2000);
 
-        const popup = await page.waitForSelector('button[jsname="IbE0S"]', { visible: true });
+        // const popup = await page.waitForSelector('button[jsname="IbE0S"]', { visible: true });
 
-        await popup.click();
+        // await popup.click();
 
-        await popup.dispose();
+        // await popup.dispose();
 
 
 
@@ -437,7 +441,8 @@ class AttendanceBot {
 
             // {"Kisun": U03MF2SAXMW, "Kwiseon": U03S548N206, "Grace": U04H80KMGRW, "Hyewon": U054EFX4FAM}
 
-            sendMessage(thread, "<@U03MF2SAXMW> <@U03S548N206> <@U04H80KMGRW> <@U054EFX4FAM> Unable to join 😔. Please check script.");
+            //sendMessage(thread, "<@U03MF2SAXMW> <@U03S548N206> <@U04H80KMGRW> <@U054EFX4FAM> Unable to join 😔. Please check script.");
+            sendMessage(thread, "<@U05M0P95AGZ> Unable to join 😔. Please check script.");
 
             throw Error(`unable to join - ${title}`);
 
@@ -499,7 +504,7 @@ class AttendanceBot {
         for (let guest of guestList) {
             //Skip checking monitoring email for the moment is my account
             // we will need to replace it by 'ModernSmart Team'
-            if (guest.email == MONITORING_EMAIL && guest.email == firefliesAccount) { continue; }
+            if (guest.email == OPERATION_EMAIL) { continue; }
 
             let personData = getPersonFromData(PEOPLEDATABASE, guest.email, EMAIL_COLUMN);
 
@@ -542,7 +547,7 @@ class AttendanceBot {
 
         let log = "";
 
-        //console.log(guestList)
+        console.log(guestList)
 
         let JSONwithTS = fileName
 
@@ -584,13 +589,13 @@ class AttendanceBot {
 
         const guests = await Promise.all(promises); // List of displayed guests 
 
-        //console.log('guests: ', guests)
+        console.log('guests: ', guests)
 
         const PresetUser = presetGuestcreate(guests, guestList)
 
         const absentees = findAbsentees(guests, guestList); // Get the list of absentees
 
-        //console.log('PresetUser: ', PresetUser, '\nabsentees: ', absentees)
+        console.log('PresetUser: ', PresetUser, '\nabsentees: ', absentees)
 
         // Create and send attendance log for Slack
 
@@ -714,6 +719,7 @@ async function monitorMeet(browser, event) {
     let attendanceLog = "";
     let fileName = `Record_${eventID}`
 
+
     await writeJSONFile(fileName)
 
 
@@ -777,12 +783,12 @@ async function monitorMeet(browser, event) {
 
                     if (await bot.isInMeet() === true) {
 
-                        // let guestListForAttandace = event.guests.slice();
-                        // guestListForAttandace.push({
-                        //     email: 'bot@noemail.com',
-                        //     displayName: 'ModernSmart Inc.',
-                        //     responseStatus: 'needsAction'
-                        // });
+                        let guestListForAttandace = event.guests.slice();
+                        guestListForAttandace.push({
+                            email: 'bot@noemail.com',
+                            displayName: 'firefliesAccount',
+                            responseStatus: 'needsAction'
+                        });
 
                         //console.log(guestListForAttandace)
 
@@ -790,7 +796,7 @@ async function monitorMeet(browser, event) {
                             await bot.takeAttendance(
                                 thread,
                                 1 * 60 * 1000,
-                                event.guests,
+                                guestListForAttandace,
                                 event.startTime,
                                 lateGuests,
                                 fileName
@@ -828,7 +834,8 @@ async function monitorMeet(browser, event) {
 
         console.log(`closing context...${event.meetLink} `);
 
-
+        // deleteFile(absenceTxt)
+        // deleteFile(attendaceTxt)
         deleteJSONFile(fileName)
 
         await bot.context.close();
@@ -1110,38 +1117,52 @@ function findAbsentees(displayedGuests, invitedGuests) {
 
     for (const invited of invitedGuests) {
 
-        if (invited.email == MONITORING_EMAIL) { continue; } //Skip checking monitoring email
+        if (invited.email == OPERATION_EMAIL) { continue; } //Skip checking monitoring email
 
-        let personData = getPersonFromData(PEOPLEDATABASE, invited.email, EMAIL_COLUMN);
+        var invitedName;
+        var invitedNickName;
+        var role;
 
-        if (personData) {
+        if (invited.email == 'bot@noemail.com') {
+            invitedName = firefliesAccount;
+            invitedNickName = 'Ai Bot';
+            role = "Bot"
 
-            var invitedName = personData[NAME_COLUMN - 1] || "No name"; // Get the name of the invited email
-
-            var invitedNickName = personData[NICKNAME_COLUMN - 1] || "No nickname";
-
-            var role = personData[ROLE_COLUMN - 1] || "No role";
+        } else {
 
 
-            for (let i = 0; i < displayedguests.length; i++) { //Compare the email's related names to the display names of current attendees
 
-                if (displayedguests[i].role == "parent") { continue; } //Skip the parent role
+            let personData = getPersonFromData(PEOPLEDATABASE, invited.email, EMAIL_COLUMN);
 
-                const displayName = displayedguests[i].name; // Display name of present guest
+            if (personData || invited.name == firefliesAccount) {
 
-                if (matchNames(displayName, invitedName) || matchNames(displayName, invitedNickName)) { //If either matches, the invited guest is present
+                invitedName = personData[NAME_COLUMN - 1] || "No name"; // Get the name of the invited email
 
-                    displayedguests.splice(i, 1); // Remove the matching displayName from the list
+                invitedNickName = personData[NICKNAME_COLUMN - 1] || "No nickname";
 
-                    continue emailLoop;
+                role = personData[ROLE_COLUMN - 1] || "No role";
+
+
+                for (let i = 0; i < displayedguests.length; i++) { //Compare the email's related names to the display names of current attendees
+
+                    if (displayedguests[i].role == "parent") { continue; } //Skip the parent role
+
+                    const displayName = displayedguests[i].name; // Display name of present guest
+
+                    if (matchNames(displayName, invitedName) || matchNames(displayName, invitedNickName)) { //If either matches, the invited guest is present
+
+                        displayedguests.splice(i, 1); // Remove the matching displayName from the list
+
+                        continue emailLoop;
+
+                    }
 
                 }
 
             }
-
-            absentees.push(new Guest(invitedName, invitedNickName, role)); //Add to list of absentees
-
         }
+
+        absentees.push(new Guest(invitedName, invitedNickName, role)); //Add to list of absentees
 
     }
 
@@ -1157,23 +1178,38 @@ function presetGuestcreate(guestDisplayList, guestList) {
     let GuestUsers = [];
     let finalPresetList = [];
 
+    console.log('presetGuestcreate \nguestDisplayList: ', guestDisplayList, '\nguestList: ', guestList)
+
     for (let guest of guestList) {
         //Skip checking monitoring email for the moment is my account
         // we will need to replace it by 'ModernSmart Team'
-        //if (guest.email == MONITORING_EMAIL || guest.invitedNickName == 'Karla Valladares') { continue; }
+        if (guest.email == OPERATION_EMAIL || guest.invitedNickName == 'Karla Valladares') { continue; }
 
-        let personData = getPersonFromData(PEOPLEDATABASE, guest.email, EMAIL_COLUMN);
+        var invitedName;
+        var invitedNickName;
+        var role;
 
-        if (personData) {
-            var invitedName = personData[NAME_COLUMN - 1] || "No name"; // Get the name of the invited email
-            var invitedNickName = personData[NICKNAME_COLUMN - 1] || "No nickname";
-            var role = personData[ROLE_COLUMN - 1] || "No role";
+        if (guest.email == 'bot@noemail.com') {
+            invitedName = firefliesAccount;
+            invitedNickName = 'Ai Bot';
+            role = "Bot"
 
-            let presentGuest = new Guest(invitedName, invitedNickName, role)
+        } else {
 
-            GuestUsers.push(presentGuest)
+            let personData = getPersonFromData(PEOPLEDATABASE, guest.email, EMAIL_COLUMN);
 
+
+
+            if (personData) {
+                invitedName = personData[NAME_COLUMN - 1] || "No name"; // Get the name of the invited email
+                invitedNickName = personData[NICKNAME_COLUMN - 1] || "No nickname";
+                role = personData[ROLE_COLUMN - 1] || "No role";
+            }
         }
+        let presentGuest = new Guest(invitedName, invitedNickName, role)
+
+        GuestUsers.push(presentGuest)
+        console.log(GuestUsers)
     }
 
     console.log("DisplayUsers", DisplayUsers)
@@ -1268,10 +1304,10 @@ async function notifyAbsence(absentee, meetingTime, thread, JSONwithTS, keyTutor
         keyTS = keyTutor
     }
 
-    // else if (name == firefliesAccount) {
-    //     lateThreshold = BOTTIME;
-    //     keyTS = keyBot
-    // }
+    else if (role == "bot") {
+        lateThreshold = BOTTIME;
+        keyTS = keyBot
+    }
 
     else { return []; }
 
@@ -1293,7 +1329,7 @@ async function notifyAbsence(absentee, meetingTime, thread, JSONwithTS, keyTutor
 
         console.log(titleAbsenceRecord)
 
-        let contentAbsent = await `${curTime.toLocaleTimeString('en-US')} ${name} is absent. \n<@U03MF2SAXMW> <@U03S548N206> <@U04H80KMGRW> <@U04B6KC56CV>`;
+        let contentAbsent = await `${curTime.toLocaleTimeString('en-US')} ${name} is absent. \n<@U05M0P95AGZ>`;
 
         let replyAbsentID = await readJSONValue(titleAbsenceRecord, keyTS)
 
@@ -1756,6 +1792,65 @@ async function deleteJSONFile(fileName) {
     }
 }
 
+
+
+// // Function to create a TXT file with the event ID as title 
+// async function createEmptyTextFile(fileName) {
+//     try {
+//         const __dirname = path.dirname(fileURLToPath(import.meta.url));
+//         // Specify the directory path where the file should be created
+//         const directoryPath = path.join(__dirname, 'record');
+//         // Specify the file path
+//         const filePath = path.join(directoryPath, `${fileName}.txt`);
+
+//         // Create the empty file
+//         await fs.writeFile(filePath, '', 'utf8');
+//     } catch (err) {
+//         console.error(`Error creating the file: ${err}`);
+//     }
+// }
+
+
+
+
+
+// // Function to write in the TXT file with the even name as title
+// It will write the ts of the last post in Slack
+// async function writeTextToFile(txtFileName, content) {
+//     try {
+//         await fs.writeFile(`./Record/${txtFileName}.txt`, content, 'utf8');
+//     } catch (err) {
+//         console.error(`Error writing to the file: ${err}`);
+//     }
+// }
+
+
+// function to read the information in the TXT to get the TS in the content
+// it will retun the content so we can use it to read the history of the Slack post
+// async function readTextFile(txtFileName) {
+//     try {
+//         const content = await fs.readFile(`./Record/${txtFileName}.txt`, 'utf8');
+//         return content;
+//     } catch (err) {
+//         console.error(`Error reading the file: ${err}`);
+//         return null;
+//     }
+// }
+
+// function to delete the TXT record when the meets end
+
+// async function deleteFile(txtFileName) {
+//     try {
+//         // Check if the file exists
+//         await fs.access(`./Record/${txtFileName}.txt`);
+
+//         // Delete the file
+//         await fs.unlink(`./Record/${txtFileName}.txt`);
+//         console.log(`File "${txtFileName}" has been deleted.`);
+//     } catch (error) {
+//         console.error(`Error deleting file "${txtFileName}": ${error.message}`);
+//     }
+// }
 
 
 function capitalizeFirstLetter(string) {
