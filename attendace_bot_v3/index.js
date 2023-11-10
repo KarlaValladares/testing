@@ -113,7 +113,7 @@ const gmail = google.gmail({ version: 'v1', auth })
 
 // People Database Constants
 
-const spreadsheetId = "18tn8iR1wlBBI8aB1S_5KVRsnCz763JgXWxD9UvBKvME";
+const spreadsheetId = "1TVPgQL5aH1FvL9SfeX0psUQAlxjHDLUoIkrttuEz1q0";
 
 const ALLTABNAME = "All";
 
@@ -141,21 +141,21 @@ const STUDENTTIME = 10 * 60 * 1000; //10 minutes
 
 const TUTORTIME = 5 * 60 * 1000; //5 minutes
 
-const BOTTIME = -1 * 60 * 1000; // 1 min before the start time
+// const BOTTIME = -1 * 60 * 1000; // 1 min before the start time
 
 //FOR TESTING:
 
-// const STUDENTTIME = 0 * 60 * 1000; 
+// const STUDENTTIME = 1 * 60 * 1000; //1 minute 
 
-// const TUTORTIME = 0 * 60 * 1000; 
+// const TUTORTIME = -1 * 60 * 1000; // 1 minute before the start time
+
+// const BOTTIME = -2 * 60 * 1000; // 2 min before the start time
 
 
 
-const MONITORING_EMAIL = "c_0cfc6e73a322d321cc674c06ba78cb7e316d53831db5cab95922f3cc7f7cdfc6@group.calendar.google.com";
+const MONITORING_EMAIL = "operation@modernsmart.com";
 
-//const MONITORING_EMAIL = "karla.valladares@modernsmart.com"; // this should be the operation account
-
-const firefliesAccount = "ModernSmart Inc."; // this is for the firefly
+//const firefliesAccount = "ModernSmart Inc."; // this is for the firefly
 
 const DATE_REGEX = /(\d?\d:\d\d):\d\d\s(\w\w)/;
 
@@ -175,12 +175,7 @@ const PRESENT = 1;
 
 //const TEST_CHANNEL2_ID = "D05DWRVB000";
 
-//const UAT_CHANNEL_ID = "C05QLMNNS1W";
-
-// const prod_channel_ID = "C05QLMNNS1W";
-const prod_channel_ID = "C05MZ2XBYAJ";
-
-
+const UAT_CHANNEL_ID = "C05QLMNNS1W";
 
 
 
@@ -398,15 +393,15 @@ class AttendanceBot {
 
         // // continue without microphone and camera
 
-        // console.log("dismissing popup");
+        console.log("dismissing popup");
 
-        // await sleep(2000);
+        await sleep(2000);
 
-        // const popup = await page.waitForSelector('button[jsname="IbE0S"]', { visible: true });
+        const popup = await page.waitForSelector('button[jsname="IbE0S"]', { visible: true });
 
-        // await popup.click();
+        await popup.click();
 
-        // await popup.dispose();
+        await popup.dispose();
 
 
 
@@ -442,8 +437,7 @@ class AttendanceBot {
 
             // {"Kisun": U03MF2SAXMW, "Kwiseon": U03S548N206, "Grace": U04H80KMGRW, "Hyewon": U054EFX4FAM}
 
-            //sendMessage(thread, "<@U03MF2SAXMW> <@U03S548N206> <@U04H80KMGRW> <@U054EFX4FAM> Unable to join 😔. Please check script.");
-            sendMessage(thread, "<@U05M0P95AGZ> Unable to join 😔. Please check script.");
+            sendMessage(thread, "<@U03MF2SAXMW> <@U03S548N206> <@U04H80KMGRW> <@U054EFX4FAM> Unable to join 😔. Please check script.");
 
             throw Error(`unable to join - ${title}`);
 
@@ -505,7 +499,7 @@ class AttendanceBot {
         for (let guest of guestList) {
             //Skip checking monitoring email for the moment is my account
             // we will need to replace it by 'ModernSmart Team'
-            if (guest.email == MONITORING_EMAIL) { continue; }
+            if (guest.email == MONITORING_EMAIL && guest.email == firefliesAccount) { continue; }
 
             let personData = getPersonFromData(PEOPLEDATABASE, guest.email, EMAIL_COLUMN);
 
@@ -548,6 +542,8 @@ class AttendanceBot {
 
         let log = "";
 
+        //console.log(guestList)
+
         let JSONwithTS = fileName
 
         let attendaceKeyinfo = "absenceTs";
@@ -588,15 +584,19 @@ class AttendanceBot {
 
         const guests = await Promise.all(promises); // List of displayed guests 
 
+        //console.log('guests: ', guests)
+
         const PresetUser = presetGuestcreate(guests, guestList)
 
         const absentees = findAbsentees(guests, guestList); // Get the list of absentees
+
+        //console.log('PresetUser: ', PresetUser, '\nabsentees: ', absentees)
 
         // Create and send attendance log for Slack
 
         log += await createLog(PresetUser, absentees);
 
-        console.log("value to read JSON: ", JSONwithTS, attendaceKeyinfo)
+        //console.log("value to read JSON: ", JSONwithTS, attendaceKeyinfo)
 
         let replyID = await readJSONValue(JSONwithTS, attendaceKeyinfo)
 
@@ -615,11 +615,11 @@ class AttendanceBot {
 
         let textRecord2 = await removeAMorPM(log);
 
-        console.log("currentMEssage: ", textRecord1, typeof textRecord1, "log: ", textRecord2, typeof textRecord2)
+        //console.log("currentMEssage: ", textRecord1, typeof textRecord1, "log: ", textRecord2, typeof textRecord2)
 
         //console.log(findDifferences(textRecord1, textRecord2))
 
-        console.log(textRecord1 !== textRecord2);
+        //console.log(textRecord1 !== textRecord2);
 
         if (textRecord1 !== textRecord2) {
 
@@ -713,13 +713,6 @@ async function monitorMeet(browser, event) {
     let eventID = event.id;
     let attendanceLog = "";
     let fileName = `Record_${eventID}`
-    // let absenceTxt = `AbsenceRecord_${eventID}`;
-    // let attendaceTuTorTxt = `AttendanceTutor_${eventID}`;
-    // let attendaceStudentTxt = `AttendanceStudent_${eventID}`;
-    // let attendaceBotTxt = `AttendanceBot_${eventID}`;
-
-    // createEmptyTextFile(absenceTxt)
-    // createEmptyTextFile(attendaceTxt)
 
     await writeJSONFile(fileName)
 
@@ -784,20 +777,20 @@ async function monitorMeet(browser, event) {
 
                     if (await bot.isInMeet() === true) {
 
-                        let guestListForAttandace = event.guests.slice();
-                        guestListForAttandace.push({
-                            email: 'No email address',
-                            displayName: 'ModernSmart Inc.',
-                            responseStatus: 'needsAction'
-                        });
+                        // let guestListForAttandace = event.guests.slice();
+                        // guestListForAttandace.push({
+                        //     email: 'bot@noemail.com',
+                        //     displayName: 'ModernSmart Inc.',
+                        //     responseStatus: 'needsAction'
+                        // });
 
-                        console.log(guestListForAttandace)
+                        //console.log(guestListForAttandace)
 
                         lateGuests = lateGuests.concat(
                             await bot.takeAttendance(
                                 thread,
                                 1 * 60 * 1000,
-                                guestListForAttandace,
+                                event.guests,
                                 event.startTime,
                                 lateGuests,
                                 fileName
@@ -835,8 +828,7 @@ async function monitorMeet(browser, event) {
 
         console.log(`closing context...${event.meetLink} `);
 
-        // deleteFile(absenceTxt)
-        // deleteFile(attendaceTxt)
+
         deleteJSONFile(fileName)
 
         await bot.context.close();
@@ -1236,7 +1228,7 @@ async function createLog(guests, absentees) {
 
             if (absentee.role != "parent") { // Exclude the parents since the contact inforamtion will be posted  at the begining
 
-                log += `∙ ${absentee.name} :x: (${absentee.role}) \n`;
+                log += `∙ ${absentee.name} :x: (${capitalizeFirstLetter(absentee.role)}) \n`;
 
             }
 
@@ -1276,10 +1268,10 @@ async function notifyAbsence(absentee, meetingTime, thread, JSONwithTS, keyTutor
         keyTS = keyTutor
     }
 
-    else if (name == firefliesAccount) {
-        lateThreshold = BOTTIME;
-        keyTS = keyBot
-    }
+    // else if (name == firefliesAccount) {
+    //     lateThreshold = BOTTIME;
+    //     keyTS = keyBot
+    // }
 
     else { return []; }
 
@@ -1301,11 +1293,11 @@ async function notifyAbsence(absentee, meetingTime, thread, JSONwithTS, keyTutor
 
         console.log(titleAbsenceRecord)
 
-        let contentAbsent = await `${curTime.toLocaleTimeString('en-US')} ${name} is absent. \n<@U05M0P95AGZ>`;
+        let contentAbsent = await `${curTime.toLocaleTimeString('en-US')} ${name} is absent. \n<@U03MF2SAXMW> <@U03S548N206> <@U04H80KMGRW> <@U04B6KC56CV>`;
 
         let replyAbsentID = await readJSONValue(titleAbsenceRecord, keyTS)
 
-        console.log(replyAbsentID)
+        //console.log(replyAbsentID)
 
         let currentabsentMessage;
 
@@ -1764,65 +1756,6 @@ async function deleteJSONFile(fileName) {
     }
 }
 
-
-
-// // Function to create a TXT file with the event ID as title 
-// async function createEmptyTextFile(fileName) {
-//     try {
-//         const __dirname = path.dirname(fileURLToPath(import.meta.url));
-//         // Specify the directory path where the file should be created
-//         const directoryPath = path.join(__dirname, 'record');
-//         // Specify the file path
-//         const filePath = path.join(directoryPath, `${fileName}.txt`);
-
-//         // Create the empty file
-//         await fs.writeFile(filePath, '', 'utf8');
-//     } catch (err) {
-//         console.error(`Error creating the file: ${err}`);
-//     }
-// }
-
-
-
-
-
-// // Function to write in the TXT file with the even name as title
-// It will write the ts of the last post in Slack
-// async function writeTextToFile(txtFileName, content) {
-//     try {
-//         await fs.writeFile(`./Record/${txtFileName}.txt`, content, 'utf8');
-//     } catch (err) {
-//         console.error(`Error writing to the file: ${err}`);
-//     }
-// }
-
-
-// function to read the information in the TXT to get the TS in the content
-// it will retun the content so we can use it to read the history of the Slack post
-// async function readTextFile(txtFileName) {
-//     try {
-//         const content = await fs.readFile(`./Record/${txtFileName}.txt`, 'utf8');
-//         return content;
-//     } catch (err) {
-//         console.error(`Error reading the file: ${err}`);
-//         return null;
-//     }
-// }
-
-// function to delete the TXT record when the meets end
-
-// async function deleteFile(txtFileName) {
-//     try {
-//         // Check if the file exists
-//         await fs.access(`./Record/${txtFileName}.txt`);
-
-//         // Delete the file
-//         await fs.unlink(`./Record/${txtFileName}.txt`);
-//         console.log(`File "${txtFileName}" has been deleted.`);
-//     } catch (error) {
-//         console.error(`Error deleting file "${txtFileName}": ${error.message}`);
-//     }
-// }
 
 
 function capitalizeFirstLetter(string) {
