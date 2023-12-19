@@ -113,7 +113,7 @@ const gmail = google.gmail({ version: 'v1', auth })
 
 // People Database Constants
 
-const spreadsheetId = "1TVPgQL5aH1FvL9SfeX0psUQAlxjHDLUoIkrttuEz1q0";
+const spreadsheetId = "18tn8iR1wlBBI8aB1S_5KVRsnCz763JgXWxD9UvBKvME";
 
 const ALLTABNAME = "All";
 
@@ -133,31 +133,30 @@ const FAMILYID_COLUMN = 7;
 
 const GRADE_COLUMN = 8;
 
-const PEOPLEDATABASE = await getGoogleSheetsData(spreadsheetId, ALLTABNAME);
 
 
 
-const STUDENTTIME = 10 * 60 * 1000; //10 minutes
+// const STUDENTTIME = 5 * 60 * 1000; //10 minutes
 
-const TUTORTIME = 5 * 60 * 1000; //5 minutes
+// const TUTORTIME = 3 * 60 * 1000; //5 minutes
 
-const BOTTIME = -1 * 60 * 1000; // 1 min before the start time
+// const BOTTIME = 1000; // 1 minute the start time
 
 //FOR TESTING:
 
-// const STUDENTTIME = 1 * 60 * 1000; //1 minute 
+const STUDENTTIME = 2 * 60 * 1000; //2 minute 
 
-// const TUTORTIME = -1 * 60 * 1000; // 1 minute before the start time
+const TUTORTIME = 1 * 60 * 1000; // 1 minute before the start time
 
-// const BOTTIME = -2 * 60 * 1000; // 2 min before the start time
+const BOTTIME = 0 * 60 * 1000; // 0 min before the start time
 
 
 
-const MONITORING_EMAIL = "monitoring@modernsmart.com";
+const MONITORING_EMAIL = "bryan.monterrosa@modernsmart.com";
 
-const OPERATION_EMAIL = "operation@modernsmart.com";
+const OPERATION_EMAIL = "karla.valladares@modernsmart.com"; // this should be the operation account
 
-//const firefliesAccount = "ModernSmart Inc."; // this is for the firefly
+const firefliesAccount = "ModernSmart Inc."; // this is for the firefly
 
 const DATE_REGEX = /(\d?\d:\d\d):\d\d\s(\w\w)/;
 
@@ -177,7 +176,10 @@ const PRESENT = 1;
 
 //const TEST_CHANNEL2_ID = "D05DWRVB000";
 
-const UAT_CHANNEL_ID = "C05QLMNNS1W";
+const UAT_CHANNEL_ID = "C05MZ2XBYAJ";
+
+// // const prod_channel_ID = "C05QLMNNS1W";
+//const prod_channel_ID = "C05MZ2XBYAJ";
 
 
 
@@ -441,8 +443,8 @@ class AttendanceBot {
 
             // {"Kisun": U03MF2SAXMW, "Kwiseon": U03S548N206, "Grace": U04H80KMGRW, "Hyewon": U054EFX4FAM}
 
-            //sendMessage(thread, "<@U03MF2SAXMW> <@U03S548N206> <@U04H80KMGRW> <@U054EFX4FAM> Unable to join 😔. Please check script.");
             sendMessage(thread, "<@U05M0P95AGZ> Unable to join 😔. Please check script.");
+            // sendMessage(thread, "<@U05M0P95AGZ> Unable to join 😔. Please check script.");
 
             throw Error(`unable to join - ${title}`);
 
@@ -499,35 +501,54 @@ class AttendanceBot {
 
     async postContactGuest(thread, guestList) {
         let slackThread = thread;
-        let logRecords = "";
+        let logRecordsSet = new Set(); // Use a Set to store unique entries
+
+        const PEOPLEDATABASE = await getGoogleSheetsData(spreadsheetId, ALLTABNAME);
 
         for (let guest of guestList) {
-            //Skip checking monitoring email for the moment is my account
+            // Skip checking monitoring email for the moment is my account
             // we will need to replace it by 'ModernSmart Team'
             if (guest.email == OPERATION_EMAIL) { continue; }
 
-            let personData = getPersonFromData(PEOPLEDATABASE, guest.email, EMAIL_COLUMN);
+            let peopleData = getPersonFromData(PEOPLEDATABASE, guest.email, EMAIL_COLUMN);
 
-            if (personData) {
-                var invitedName = personData[NAME_COLUMN - 1] || "No name"; // Get the name of the invited email
-                //var invitedNickName = personData[NICKNAME_COLUMN - 1] || "No nickname";
-                var phoneNum = personData[PHONE_COLUMN - 1] || "";
-                var role = personData[ROLE_COLUMN - 1] || "No role";
+            for (let personData of peopleData) {
+                if (personData) {
+                    var invitedName = personData[NAME_COLUMN - 1] || "No name";
+                    var phoneNum = personData[PHONE_COLUMN - 1] || "";
+                    var role = personData[ROLE_COLUMN - 1] || "No role";
 
-                if (role == "parent" && phoneNum == "") {
-                    logRecords += `${capitalizeFirstLetter(role)}: ${guest.email} \n`
-                } else if (role == "parent" && phoneNum != "") {
-                    logRecords += `${capitalizeFirstLetter(role)}: ${guest.email}, ${phoneNum} \n`
-                } else if (role != "parent" && phoneNum != "") {
-                    logRecords += `${capitalizeFirstLetter(role)}: ${invitedName}, ${guest.email}, ${phoneNum} \n`
+                    // Construct the record
+                    let record;
+                    if (role == "parent" && phoneNum == "") {
+                        record = `${capitalizeFirstLetter(role)}: ${guest.email}`;
+                    } else if (role == "parent" && phoneNum != "") {
+                        record = `${capitalizeFirstLetter(role)}: ${guest.email}, ${phoneNum}`;
+                    } else if (role != "parent" && phoneNum != "") {
+                        record = `${capitalizeFirstLetter(role)}: ${invitedName}, ${guest.email}, ${phoneNum}`;
+                    } else {
+                        record = `${capitalizeFirstLetter(role)}: ${invitedName}, ${guest.email}`;
+                    }
+
+                    logRecordsSet.add(record);
                 } else {
-                    logRecords += `${capitalizeFirstLetter(role)}: ${invitedName}, ${guest.email} \n`
+                    // If personData is not defined, add the email directly
+                    logRecordsSet.add(guest.email);
                 }
             }
         }
 
-        sendMessage(slackThread, logRecords)
+        // Convert the Set back to an array and sort based on role
+        const logRecordsArray = Array.from(logRecordsSet).sort((a, b) => {
+            const roleA = a.substring(0, a.indexOf(':'));
+            const roleB = b.substring(0, b.indexOf(':'));
+            return roleA.localeCompare(roleB);
+        });
 
+        // Join the array into a string
+        const logRecords = logRecordsArray.join('\n');
+
+        sendMessage(slackThread, logRecords);
     }
 
 
@@ -541,13 +562,16 @@ class AttendanceBot {
 
      */
 
-    async takeAttendance(thread, interval, guestList, startTime, lateGuests, fileName) {
+    async takeAttendance(thread, interval, guestList, startTime, fileName) {
+
 
         const page = this.page;
 
         let log = "";
 
-        console.log(guestList)
+        console.log('guestList inside take attandance')
+
+        console.dir(guestList)
 
         let JSONwithTS = fileName
 
@@ -557,7 +581,7 @@ class AttendanceBot {
 
         let absenceKeyStudent = "attendaceStudentTs";
 
-        let absenceKeyNot = "absenceKeyTutor";
+        let absenceKeyBot = "attendaceBotTs";
 
         // Scrape display names
 
@@ -588,18 +612,17 @@ class AttendanceBot {
 
 
         const guests = await Promise.all(promises); // List of displayed guests 
+        const { uniquePresent, uniqueMissing } = await createListGuest(guests, guestList);
 
-        console.log('guests: ', guests)
+        console.log('Outside the fucntion of createListGuest. \n Present user: ')
+        console.dir(uniquePresent)
+        console.log('absent users')
+        console.dir(uniqueMissing)
 
-        const PresetUser = presetGuestcreate(guests, guestList)
-
-        const absentees = findAbsentees(guests, guestList); // Get the list of absentees
-
-        console.log('PresetUser: ', PresetUser, '\nabsentees: ', absentees)
 
         // Create and send attendance log for Slack
 
-        log += await createLog(PresetUser, absentees);
+        log += await createLog(uniquePresent, uniqueMissing);
 
         //console.log("value to read JSON: ", JSONwithTS, attendaceKeyinfo)
 
@@ -611,7 +634,7 @@ class AttendanceBot {
 
         if (replyID != "0") {
 
-            currentMEssage = await getMessageByTsAndChannel(prod_channel_ID, replyID);
+            currentMEssage = await getMessageByTsAndChannel(UAT_CHANNEL_ID, replyID);
         } else {
             currentMEssage = 'PM'
         }
@@ -636,18 +659,52 @@ class AttendanceBot {
 
         // Send notification messages if necessary
 
-        for (const absentee of absentees) {
+        console.log('absentees from the take attendace')
 
-            if (!lateGuests.includes(absentee.email)) { // If guests have already been marked late, do not notify them again
+        console.dir(uniqueMissing)
 
-                lateGuests = lateGuests.concat(await notifyAbsence(absentee, startTime, thread, JSONwithTS, absenceKeyTutor, absenceKeyStudent, absenceKeyNot));
+        let newUniqueMissing = uniqueMissing.slice();
+        let mergedObjects = {};
+
+        // Loop through the copied array and merge objects by role
+        newUniqueMissing.forEach(obj => {
+            const { role } = obj;
+            if (role) {
+                if (!mergedObjects[role]) {
+                    // If the role does not exist in mergedObjects, create an entry
+                    mergedObjects[role] = { role, groups: [] };
+                }
+                // Add the object to the corresponding role in mergedObjects
+                mergedObjects[role].groups.push({ name: obj.name, nickname: obj.nickname });
+            }
+        });
+
+        // Convert the values of mergedObjects back to an array
+        newUniqueMissing = Object.values(mergedObjects);
+        const curTime = new Date();
+        const newMeetingTime = new Date(startTime)
+        const after30mins = new Date(newMeetingTime.getTime() + 10 * 60 * 1000);
+
+        if (curTime < after30mins) {
+
+            for (const absentee of newUniqueMissing) {
+                console.log('information of absentee before it access to the notifyAbsence function ')
+                console.dir(absentee)
+
+
+                await notifyAbsence(
+                    absentee,
+                    startTime,
+                    thread,
+                    JSONwithTS,
+                    absenceKeyTutor,
+                    absenceKeyStudent,
+                    absenceKeyBot
+                );
 
             }
-
         }
-
         await sleep(interval);
-
         return log;
 
     }
@@ -747,6 +804,8 @@ async function monitorMeet(browser, event) {
 
         bot.postContactGuest(thread, event.guests)
 
+        await sleep(1000);
+
         // auto admit AND take attendance
 
         await pAll([
@@ -777,30 +836,26 @@ async function monitorMeet(browser, event) {
 
                 console.log("taking attendance...");
 
-                var lateGuests = []; // Passed to takeAttendance so that notifications are not sent more than once per late guest
 
-                while (Date.now() < Math.min(startTime + (17.5 * 60 * 1000) + (10 * 1000), endTime)) {
+                while (Date.now() < Math.min(endTime - (10 * 60 * 1000), endTime)) {
 
                     if (await bot.isInMeet() === true) {
 
                         let guestListForAttandace = event.guests.slice();
                         guestListForAttandace.push({
                             email: 'bot@noemail.com',
-                            displayName: 'firefliesAccount',
                             responseStatus: 'needsAction'
                         });
 
                         //console.log(guestListForAttandace)
 
-                        lateGuests = lateGuests.concat(
-                            await bot.takeAttendance(
-                                thread,
-                                1 * 60 * 1000,
-                                guestListForAttandace,
-                                event.startTime,
-                                lateGuests,
-                                fileName
-                            )); // CHANGE WHEN TESTING
+                        await bot.takeAttendance(
+                            thread,
+                            1 * 60 * 1000,
+                            guestListForAttandace,
+                            event.startTime,
+                            fileName
+                        ); // CHANGE WHEN TESTING
 
                     } else {
 
@@ -1103,274 +1158,349 @@ function sleep(milliseconds) {
 }
 
 
+// Takes list of displayed guests and list of invited emails; 
+//returns list of Absentees and the present users with their database information
 
+async function getGuestUsers(invitees) {
+    let guestUsers = [];
 
-// Takes list of displayed guests and list of invited emails; returns list of Absentees and their database information
+    const PEOPLEDATABASE = await getGoogleSheetsData(spreadsheetId, ALLTABNAME);
 
-function findAbsentees(displayedGuests, invitedGuests) {
+    for (const invite of invitees) {
+        if (invite.email == OPERATION_EMAIL || invite.email == MONITORING_EMAIL) {
+            continue; // Skip checking monitoring email
+        }
 
-    var displayedguests = displayedGuests.slice(); //Must create copy so that original is not modified
+        let invitedName;
+        let invitedNickName;
+        let role;
+        let guestEmail = invite.email;
 
-    let absentees = [];
-
-    emailLoop:
-
-    for (const invited of invitedGuests) {
-
-        if (invited.email == OPERATION_EMAIL) { continue; } //Skip checking monitoring email
-
-        var invitedName;
-        var invitedNickName;
-        var role;
-
-        if (invited.email == 'bot@noemail.com') {
+        if (guestEmail == 'bot@noemail.com') {
             invitedName = firefliesAccount;
-            invitedNickName = 'Ai Bot';
-            role = "Bot"
+            invitedNickName = 'Fireflies.ai Notetaker';
+            role = 'bot';
+            guestUsers.push({ name: invitedName, nickname: invitedNickName, role: role, email: guestEmail });
 
         } else {
+            let peopleData = getPersonFromData(PEOPLEDATABASE, guestEmail, EMAIL_COLUMN);
+            for (let personData of peopleData) {
+                if (personData) {
+                    invitedName = personData[NAME_COLUMN - 1] || 'No name';
+                    invitedNickName = personData[NICKNAME_COLUMN - 1] || 'No nickname';
+                    role = personData[ROLE_COLUMN - 1] || 'No role';
 
-
-
-            let personData = getPersonFromData(PEOPLEDATABASE, invited.email, EMAIL_COLUMN);
-
-            if (personData || invited.name == firefliesAccount) {
-
-                invitedName = personData[NAME_COLUMN - 1] || "No name"; // Get the name of the invited email
-
-                invitedNickName = personData[NICKNAME_COLUMN - 1] || "No nickname";
-
-                role = personData[ROLE_COLUMN - 1] || "No role";
-
-
-                for (let i = 0; i < displayedguests.length; i++) { //Compare the email's related names to the display names of current attendees
-
-                    if (displayedguests[i].role == "parent") { continue; } //Skip the parent role
-
-                    const displayName = displayedguests[i].name; // Display name of present guest
-
-                    if (matchNames(displayName, invitedName) || matchNames(displayName, invitedNickName)) { //If either matches, the invited guest is present
-
-                        displayedguests.splice(i, 1); // Remove the matching displayName from the list
-
-                        continue emailLoop;
-
-                    }
-
+                } else {
+                    // Convert email to string to prevent Slack mailto link
+                    invitedName = `<mailto:${guestEmail}|${guestEmail}>`;
+                    invitedNickName = 'Not in DB';
+                    role = 'Not in DB';
                 }
-
+                if (invitedName != undefined) {
+                    guestUsers.push({ name: invitedName, nickname: invitedNickName, role: role, email: guestEmail });
+                }
             }
+
         }
 
-        absentees.push(new Guest(invitedName, invitedNickName, role)); //Add to list of absentees
+
 
     }
 
-    return absentees;
+    console.log('guestUsers List')
+    console.dir(guestUsers)
 
+    return guestUsers;
 }
 
 
-// Takes list of displayed guests and list of invited emails; returns list of present users and their database information
-
-function presetGuestcreate(guestDisplayList, guestList) {
-    let DisplayUsers = guestDisplayList;
-    let GuestUsers = [];
-    let finalPresetList = [];
-
-    console.log('presetGuestcreate \nguestDisplayList: ', guestDisplayList, '\nguestList: ', guestList)
-
-    for (let guest of guestList) {
-        //Skip checking monitoring email for the moment is my account
-        // we will need to replace it by 'ModernSmart Team'
-        if (guest.email == OPERATION_EMAIL || guest.invitedNickName == 'Karla Valladares') { continue; }
-
-        var invitedName;
-        var invitedNickName;
-        var role;
-
-        if (guest.email == 'bot@noemail.com') {
-            invitedName = firefliesAccount;
-            invitedNickName = 'Ai Bot';
-            role = "Bot"
-
-        } else {
-
-            let personData = getPersonFromData(PEOPLEDATABASE, guest.email, EMAIL_COLUMN);
 
 
+function getPresentUsers(guestUsers, displayList) {
+    let present = [];
 
-            if (personData) {
-                invitedName = personData[NAME_COLUMN - 1] || "No name"; // Get the name of the invited email
-                invitedNickName = personData[NICKNAME_COLUMN - 1] || "No nickname";
-                role = personData[ROLE_COLUMN - 1] || "No role";
+    guestUsers.forEach((guestUser) => {
+        const nameToSearchInvated = guestUser.name.toLowerCase();
+        const nicknameToSearchInvated = guestUser.nickname ? guestUser.nickname.toLowerCase() : null;
+
+        const foundDisplayUser = displayList.find(
+            (displayUser) =>
+                displayUser.name.toLowerCase() == nameToSearchInvated ||
+                (nicknameToSearchInvated && displayUser.name.toLowerCase() == nicknameToSearchInvated)
+        );
+
+        if (foundDisplayUser) {
+            present.push({
+                name: guestUser.name,
+                nickname: guestUser.nickname,
+                role: guestUser.role || 'Not found in DB', // Set role as "Not found in DB" if not present
+            });
+        }
+    });
+
+    // Add users from displayList that are not in guestUsers
+    displayList.forEach((displayUser) => {
+        const nameToSearch = displayUser.name.toLowerCase();
+        const nicknameToSearch = displayUser.nickname ? displayUser.nickname.toLowerCase() : null;
+
+        const isUserAlreadyAdded = present.some(
+            (addedUser) =>
+                addedUser.name.toLowerCase() == nameToSearch ||
+                (nicknameToSearch && addedUser.name.toLowerCase() == nicknameToSearch)
+        );
+
+        if (!isUserAlreadyAdded) {
+            if (displayUser.name == 'ModernSmart Operation') { return }
+            else if (displayUser == 'Fireflies.ai Notetaker') {
+                present.push({
+                    name: firefliesAccount,
+                    role: 'Bot',
+                });
+
             }
         }
-        let presentGuest = new Guest(invitedName, invitedNickName, role)
+    });
 
-        GuestUsers.push(presentGuest)
-        console.log(GuestUsers)
-    }
-
-    console.log("DisplayUsers", DisplayUsers)
-
-    for (let displayInfo of DisplayUsers) {
-        for (let guestuser of GuestUsers) {
-            if (displayInfo.name === guestuser.name || displayInfo.name === guestuser.nickname) {
-                finalPresetList.push({ name: displayInfo.name, role: guestuser.role });
-            }
-        }
-    }
-
-    // Sort objectList3 alphabetically by the "name" property
-    finalPresetList.sort((a, b) => a.name.localeCompare(b.name));
-
-    return finalPresetList
-
+    return present;
 }
 
 
-// Called on each meeting every 3 minutes for the first ~20 minutes
+
+function getMissingUsers(guestUsers, displayList, validNicknames = []) {
+    let missing = [];
+    const displayMap = new Map(displayList.map((guest) => [guest.name.toLowerCase(), guest]));
+
+    guestUsers.forEach((guestUser) => {
+        if (guestUser && guestUser.name) {
+            const nameToSearch = guestUser.name.toLowerCase();
+            const nicknameToSearch = guestUser.nickname.toLowerCase();
+            const foundGuest = displayMap.get(nameToSearch) || displayMap.get(nicknameToSearch);
+
+            // Check if display name matches the conditions
+            const isDisplayNameMatch = (guest) => {
+                return validNicknames.includes(guest.nickname.toLowerCase());
+            };
+
+            // Check if the entry should be added to the missing array
+            if (!foundGuest && !isDisplayNameMatch(guestUser)) {
+                const key = `${nameToSearch}-${nicknameToSearch}`;
+                
+                // Keep only one entry for each unique combination of name and nickname
+                if (!displayMap.get(nameToSearch) && !displayMap.get(nicknameToSearch)) {
+                    const matchingGuests = missing.filter((missingGuest) => {
+                        const missingKey = `${missingGuest.name.toLowerCase()}-${missingGuest.nickname.toLowerCase()}`;
+                        return missingKey === key;
+                    });
+
+                    if (matchingGuests.length === 0) {
+                        missing.push(guestUser);
+                    } else {
+                        // Remove objects with the same name from missing
+                        missing = missing.filter((missingGuest) => {
+                            const missingKey = `${missingGuest.name.toLowerCase()}-${missingGuest.nickname.toLowerCase()}`;
+                            return missingKey !== key;
+                        });
+                    }
+                }
+            }
+        }
+    });
+
+    return missing;
+}
+
+
+async function createListGuest(guestDisplayList, guestList) {
+    console.log('Display user');
+    let display = guestDisplayList;
+    console.dir(display);
+    console.log('Guest user');
+    let invitees = guestList;
+    console.dir(invitees);
+
+    const guestUsers = await getGuestUsers(invitees);
+
+    console.log('guestUsers after searching on the database');
+    console.dir(guestUsers);
+
+    const present = getPresentUsers(guestUsers, display);
+    const missing = getMissingUsers(guestUsers, display);
+
+    present.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    missing.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+    // Create a map to track unique names and nicknames
+    const uniqueNamesAndNicknames = new Map();
+
+    // Filter duplicates in present
+    const uniquePresent = present.filter((value) => {
+        const key = value.name.toLowerCase();
+        if (!uniqueNamesAndNicknames.has(key)) {
+            uniqueNamesAndNicknames.set(key, true);
+            return true;
+        }
+        return false;
+    });
+
+    // Clear the map for re-use
+    uniqueNamesAndNicknames.clear();
+
+    // Filter duplicates in missing
+    const uniqueMissing = missing.filter((value) => {
+        const key = value.name.toLowerCase();
+        if (!uniqueNamesAndNicknames.has(key)) {
+            uniqueNamesAndNicknames.set(key, true);
+            return true;
+        }
+        return false;
+    });
+
+
+
+    console.log('present:');
+    console.dir(uniquePresent);
+    console.log('missing:');
+    console.dir(uniqueMissing);
+
+    return { uniquePresent, uniqueMissing };
+}
+
+// Called on each meeting every 1 minutes for the first ~20 minutes
 
 async function createLog(guests, absentees) {
-
     let log = "";
+
+    console.log('createLog guest ')
+
+    console.dir(guests)
+    console.log('createLog absenttes')
+    console.dir(absentees)
 
     log += (new Date()).toLocaleTimeString('en-US');
 
-
-
-    //Log present guests
-
+    // Log present guests
     if (guests && guests.length != 0) {
-
         log += "\nPresent:\n";
-
         for (const guest of guests) {
-
+            console.dir(guest);
             log += `∙ ${guest.name} :white_check_mark: ${capitalizeFirstLetter(guest.role)} \n`;
-
         }
-
     }
 
-    //Log absentees
-
+    // Log absentees
     if (absentees && absentees.length != 0) {
-
-        log += "\nAbsent:\n";
-
+        let logabs = "";
         for (const absentee of absentees) {
-
-            if (absentee.role != "parent") { // Exclude the parents since the contact inforamtion will be posted  at the begining
-
-                log += `∙ ${absentee.name} :x: (${capitalizeFirstLetter(absentee.role)}) \n`;
-
+            if (absentee.role != "parent") { // Exclude the parents since the contact information will be posted at the beginning
+                logabs += `∙ ${absentee.name} :x: ${capitalizeFirstLetter(absentee.role)}\n`;
             }
-
         }
 
+        if (logabs.trim() != '') {
+            log += `\nAbsent: \n${logabs}`;
+        }
     }
-
+    console.dir(log)
     return log;
-
 }
 
 
+
 async function notifyAbsence(absentee, meetingTime, thread, JSONwithTS, keyTutor, keyStudent, keyBot) {
+    try {
+        let titleAbsenceRecord = JSONwithTS;
+        const curTime = new Date();
+        const lateAmount = curTime - meetingTime;
+        const role = absentee.role;
+        //const name = absentee.name;
+        const newMeetingTime = new Date(meetingTime)
+        const after4mins = new Date(newMeetingTime.getTime() + (4 * 60 + 40) * 1000);
+        const after6mins = new Date(newMeetingTime.getTime() + (5 * 60 + 40) * 1000);
+        const after7mins = new Date(newMeetingTime.getTime() + (7 * 60 + 40) * 1000);
+        const after9mins = new Date(newMeetingTime.getTime() + (8 * 60 + 40) * 1000);
+        let lateThreshold;
+        let keyTS;
 
+        console.dir(absentee)
 
-    let titleAbsenceRecord = JSONwithTS;
-
-    const curTime = new Date();
-
-    const lateAmount = curTime - meetingTime;
-
-    const role = absentee.role;
-
-    const name = absentee.name;
-
-    var lateThreshold;
-
-    var keyTS;
-
-    if (role == "student") {
-        lateThreshold = STUDENTTIME;
-        keyTS = keyStudent
-    }
-
-    else if (role == "tutor") {
-        lateThreshold = TUTORTIME;
-        keyTS = keyTutor
-    }
-
-    else if (role == "bot") {
-        lateThreshold = BOTTIME;
-        keyTS = keyBot
-    }
-
-    else { return []; }
-
-    if (lateAmount > lateThreshold) { // Person is absent past the allowed time amount
-
-        // sendEmail("@modernsmart.com", //Test notification email
-
-        // "(Test) Absence Notice for meeting scheduled for " + meetingTime.toLocaleString('en-US'), 
-
-        // "This is a notice (intended for " + absentee.email + ") that you are late for your meeting scheduled for " + meetingTime.toLocaleString('en-US'));
-
-        // sendEmail(absentee.email, //Send a notification email
-
-        //           "Absence Notice for meeting scheduled for " + meetingTime.toLocaleTimeString('en-US'), 
-
-        //           "This is a notice that you are late for your meeting scheduled for " + meetingTime.toLocaleTimeString('en-US'));
-
-        // Mention Kisun, Kwiseon, Grace, and Jonga
-
-        console.log(titleAbsenceRecord)
-
-        let contentAbsent = await `${curTime.toLocaleTimeString('en-US')} ${name} is absent. \n<@U05M0P95AGZ>`;
-
-        let replyAbsentID = await readJSONValue(titleAbsenceRecord, keyTS)
-
-        //console.log(replyAbsentID)
-
-        let currentabsentMessage;
-
-        if (replyAbsentID != "0") {
-
-            currentabsentMessage = await getMessageByTsAndChannel(prod_channel_ID, replyAbsentID);
-
-        } else {
-
-            currentabsentMessage = 'PM'
+        if (role == "student") {
+            lateThreshold = STUDENTTIME;
+            keyTS = keyStudent
         }
 
-        //console.log("contentAbsent: ", contentAbsent, "currentabsentMessage: ", currentabsentMessage)
-
-
-        let recordAbsent1 = await removeAMorPM(contentAbsent);
-
-        let recordAbsent2 = await removeAMorPM(currentabsentMessage);
-
-        //console.log("recordAbsent1: ", recordAbsent1, "recordAbsent2: ", recordAbsent1)
-        //console.log(recordAbsent1 !== recordAbsent2)
-
-
-        if (recordAbsent1 !== recordAbsent2) {
-
-            sendMessagewithrecord(thread, contentAbsent, keyTS, titleAbsenceRecord);
-        } else {
-            // The string representations are the same, so no need to send a message.
-            console.log("There is no change in the attendace.");
+        else if (role == "tutor") {
+            lateThreshold = TUTORTIME;
+            keyTS = keyTutor
         }
 
-        return [absentee.email]; // Mark this absentee as late, so that they are only notified once. 
+        else if (role == "bot") {
+            lateThreshold = BOTTIME;
+            keyTS = keyBot;
+        }
+        else {
+            return [];
+        }
 
+        console.log('lateAmount:', lateAmount)
+        console.log('lateThreshold:', lateThreshold)
+        let notificationLog = [];
+
+        if (lateAmount > lateThreshold) { // Person is absent past the allowed time amount
+            console.log(titleAbsenceRecord);
+
+            if (absentee.groups) {
+                let groupedUsers = absentee.groups;
+                groupedUsers.forEach(userAbsent => {
+                    let userNAmeGroup = `:bangbang: ${userAbsent.name} is absent.\n`
+                    notificationLog.push(userNAmeGroup)
+                });
+            } else {
+
+                notificationLog = `:bangbang: ${absentee.name} is absent.\n `;
+
+            }
+
+            let contentAbsent = `${curTime.toLocaleTimeString('en-US')}\n${notificationLog.join('\n')}\n<@U05M0P95AGZ>`;
+            let replyAbsentID = await readJSONValue(titleAbsenceRecord, keyTS);
+            let currentabsentMessage;
+
+            if (replyAbsentID != "0") {
+                currentabsentMessage = await getMessageByTsAndChannel(UAT_CHANNEL_ID, replyAbsentID);
+            } else {
+                currentabsentMessage = 'PM';
+            }
+
+            let recordAbsent1 = await removeAMorPM(contentAbsent);
+
+            if (
+                (role === "tutor" && (after4mins < curTime && curTime < after6mins || after7mins < curTime && curTime < after9mins)) ||
+                (role === "student" && after7mins < curTime && curTime < after9mins)
+            ) {
+                recordAbsent1 = '';
+            }
+
+
+
+
+            let recordAbsent2 = await removeAMorPM(currentabsentMessage);
+
+            if (recordAbsent1 !== recordAbsent2) {
+                await sendMessagewithrecord(thread, contentAbsent, keyTS, titleAbsenceRecord);
+            } else {
+                // The string representations are the same, so no need to send a message.
+                console.log("There is no change in the attendance.");
+            }
+
+            return [absentee.email]; // Mark this absentee as late, so that they are only notified once.
+        }
+
+
+
+        return [];
+    } catch (error) {
+        console.error("Error in notifyAbsence:", error);
+        return [];
     }
-
-    return [];
-
 }
 
 
@@ -1533,19 +1663,22 @@ async function getGoogleSheetsData(spreadsheetId, tabName) {
 // Output: (String[]); The row of data matching the identifier
 
 function getPersonFromData(database, identifier, columnNum) {
+    const matchingRows = [];
 
-    for (const row of database) {
+    for (let i = 0; i < database.length; i++) {
+        const row = database[i];
 
-        if (row[columnNum - 1] === identifier) {
-
-            return row;
-
+        if (
+            row[columnNum - 1]?.toLowerCase().includes(identifier.toLowerCase()) &&
+            row[ROLE_COLUMN - 1]?.toLowerCase() !== 'staff' &&
+            row[ROLE_COLUMN - 1]?.toLowerCase() !== 'partner'
+        ) {
+            // Found a matching row
+            matchingRows.push(row); // Push the rowData array directly
         }
-
     }
 
-    return null; //If nothing is found
-
+    return matchingRows;
 }
 
 
@@ -1568,7 +1701,7 @@ async function getThread(title, startTime, endTime) {
 
     try {
 
-        const thread = await findMessage(prod_channel_ID, [title, date, startString, endString]);
+        const thread = await findMessage(UAT_CHANNEL_ID, [title, date, startString, endString]);
 
         console.log("existing thread found!");
 
@@ -1580,7 +1713,7 @@ async function getThread(title, startTime, endTime) {
 
         console.log("creating new thread.");
 
-        const thread = await publishMessage(prod_channel_ID, text);
+        const thread = await publishMessage(UAT_CHANNEL_ID, text);
 
         return thread;
 
@@ -1596,7 +1729,7 @@ function sendMessage(thread, message) {
 
         try {
 
-            await replyMessage(prod_channel_ID, thread.ts, message);
+            await replyMessage(UAT_CHANNEL_ID, thread.ts, message);
 
             console.log("message sent!");
 
@@ -1619,7 +1752,7 @@ function sendMessagewithrecord(thread, message, keyValue, nameRecord) {
 
         try {
 
-            await replyMessagewithrecord(prod_channel_ID, thread.ts, message, keyTSValue, title);
+            await replyMessagewithrecord(UAT_CHANNEL_ID, thread.ts, message, keyTSValue, title);
 
             console.log("message sent!");
 
